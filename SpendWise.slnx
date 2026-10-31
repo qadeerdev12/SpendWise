@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SpendWise.Web/SpendWise.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SpendWise.Tests/SpendWise.Tests.csproj" />
+  </Folder>
+</Solution>
