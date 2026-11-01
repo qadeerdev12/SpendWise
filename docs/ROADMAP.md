@@ -71,10 +71,12 @@ Target: 2026-11-03 • Estimate: 4 hours • Depends on: T01
 ### T03 Add current user services and category initialisation
 Target: 2026-11-04 • Estimate: 4 hours • Depends on: T02
 
-- [ ] Create server-side current-user abstraction and a fresh DbContext per operation.
-- [ ] Seed eight categories once per user with idempotent initialisation.
-- [ ] Add owner-scoped expense and category operations without browser-supplied owner IDs.
-- [ ] Add two-user integration tests proving reads and writes cannot cross accounts.
+- [x] Create server-side current-user abstraction and a fresh DbContext per operation.
+- [x] Seed eight categories once per user with idempotent initialisation.
+- [x] Add owner-scoped expense and category operations without browser-supplied owner IDs.
+- [x] Add two-user integration tests proving reads and writes cannot cross accounts.
+
+Scope addition approved 1 November: permanent account deletion with password, explicit confirmation and atomic removal. Implemented with rollback and isolation tests; see [verification](task3-services.md).
 
 ### T04 Build validated expense entry
 Target: 2026-11-05 • Estimate: 4 hours • Depends on: T03

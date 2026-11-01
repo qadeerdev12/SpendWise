@@ -1,97 +1,65 @@
-﻿@page "/Account/Manage/DeletePersonalData"
-
+@page "/Account/Manage/DeletePersonalData"
 @using System.ComponentModel.DataAnnotations
 @using Microsoft.AspNetCore.Identity
+@using SpendWise.Web.Contracts
 @using SpendWise.Web.Data
-
-@inject UserManager<ApplicationUser> UserManager
+@inject SpendWise.Web.Services.AccountDeletionService Deletion
 @inject SignInManager<ApplicationUser> SignInManager
 @inject IdentityRedirectManager RedirectManager
 @inject ILogger<DeletePersonalData> Logger
 
-<PageTitle>Delete Personal Data</PageTitle>
-
+<PageTitle>Delete account</PageTitle>
 <StatusMessage Message="@message" />
-
-<h3>Delete Personal Data</h3>
-
+<h3>Delete account</h3>
 <div class="alert alert-warning" role="alert">
-    <p>
-        <strong>Deleting this data will permanently remove your account, and this cannot be recovered.</strong>
-    </p>
+    <p>This permanently deletes your account, expenses and categories. This cannot be undone.</p>
 </div>
-
-<div>
-    <EditForm Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
-        <DataAnnotationsValidator />
-        <ValidationSummary class="text-danger" role="alert" />
-        @if (requirePassword)
-        {
-            <div class="form-floating mb-3">
-                <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" aria-required="true" placeholder="Please enter your password." />
-                <label for="Input.Password" class="form-label">Password</label>
-                <ValidationMessage For="() => Input.Password" class="text-danger" />
-            </div>
-        }
-        <button class="w-100 btn btn-lg btn-danger" type="submit">Delete data and close my account</button>
-    </EditForm>
-</div>
+<EditForm Model="Input" FormName="delete-user" OnValidSubmit="OnValidSubmitAsync" method="post">
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" role="alert" />
+    <div class="form-floating mb-3">
+        <InputText type="password" @bind-Value="Input.Password" id="Input.Password" class="form-control" autocomplete="current-password" placeholder="Current password" />
+        <label for="Input.Password">Current password</label>
+        <ValidationMessage For="() => Input.Password" />
+    </div>
+    <div class="form-check mb-3">
+        <InputCheckbox id="Input.Confirmed" @bind-Value="Input.Confirmed" class="form-check-input" />
+        <label for="Input.Confirmed" class="form-check-label">I understand my account and all my expenses and categories will be permanently deleted.</label>
+    </div>
+    <button class="btn btn-danger" type="submit">Permanently delete my account</button>
+</EditForm>
 
 @code {
     private string? message;
-    private ApplicationUser? user;
-    private bool requirePassword;
+    [SupplyParameterFromForm] private InputModel Input { get; set; } = default!;
 
-    [CascadingParameter]
-    private HttpContext HttpContext { get; set; } = default!;
-
-    [SupplyParameterFromForm]
-    private InputModel Input { get; set; } = default!;
-
-    protected override async Task OnInitializedAsync()
-    {
-        Input ??= new();
-
-        user = await UserManager.GetUserAsync(HttpContext.User);
-        if (user is null)
-        {
-            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
-            return;
-        }
-        requirePassword = await UserManager.HasPasswordAsync(user);
-    }
+    // Static SSR binds submitted values before initialization; only initialise an empty form.
+    protected override void OnInitialized() => Input ??= new();
 
     private async Task OnValidSubmitAsync()
     {
-        if (user is null)
+        ServiceResult<bool> result;
+        try { result = await Deletion.DeleteAsync(Input.Password, Input.Confirmed); }
+        catch (Exception ex)
         {
-            RedirectManager.RedirectToInvalidUser(UserManager, HttpContext);
+            // Keep diagnostics on the server; never expose database details or the password.
+            Logger.LogError(ex, "Account deletion failed.");
+            message = "Error: Your account could not be deleted. Please try again.";
             return;
         }
-
-        if (requirePassword && !await UserManager.CheckPasswordAsync(user, Input.Password))
+        if (result.Status != ResultStatus.Success)
         {
-            message = "Error: Incorrect password.";
+            message = "Error: " + result.Error;
             return;
         }
-
-        var result = await UserManager.DeleteAsync(user);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException("Unexpected error occurred deleting user.");
-        }
-
+        // Cookie changes belong to this normal HTTP account flow, not an interactive circuit.
         await SignInManager.SignOutAsync();
-
-        var userId = await UserManager.GetUserIdAsync(user);
-        Logger.LogInformation("User with ID '{UserId}' deleted themselves.", userId);
-
-        RedirectManager.RedirectToCurrentPage();
+        RedirectManager.RedirectTo("Account/Login");
     }
 
     private sealed class InputModel
     {
-        [DataType(DataType.Password)]
-        public string Password { get; set; } = "";
+        [Required, DataType(DataType.Password)] public string Password { get; set; } = "";
+        public bool Confirmed { get; set; }
     }
 }

@@ -4,10 +4,12 @@ A personal expense tracker built while learning C#, ASP.NET Core and Blazor.
 
 ## Current milestone
 
-Project foundation only: .NET 10 Blazor Web App, Interactive Server rendering,
+Implemented foundation: .NET 10 Blazor Web App, Interactive Server rendering,
 Individual Accounts, SQLite, a test project and a build/test workflow.
 Expense and Category entities, relational constraints and migrations are implemented.
-Category seeding, user-scoped services, CRUD screens and dashboard totals are next.
+Owner-scoped services, one-time category initialization and permanent account deletion are implemented.
+Expense forms, ledger screens and dashboard totals are next.
+See [the service walkthrough](docs/task3-services.md) for ownership, transactions and verification.
 See [the data-model walkthrough](docs/data-model.md) for design decisions and test coverage.
 See `docs/SpendWise_Project_Specification.pdf` for the full plan.
 
@@ -49,7 +51,7 @@ dotnet test --configuration Release
 ```
 
 The integration suite uses real SQLite migrations to verify account-preserving upgrades,
-exact cents, ownership relationships, category uniqueness and restrictive deletion.
+exact cents, ownership relationships, category uniqueness, service isolation, initialization and atomic account deletion.
 Browser login/logout checks are recorded in docs/task1-verification.md.
 
 ## Layout
@@ -66,9 +68,9 @@ Target: 13 November 2026, working 3–4 hours per weekday.
 
 ## Next milestone
 
-1. Add a per-operation database context factory and user-scoped services.
-2. Initialise eight default categories once per user.
-3. Complete one slice: create an expense and display it in the ledger.
+1. Build validated expense entry with exact AUD-to-cents conversion.
+2. Display expenses in a filtered, paged ledger.
+3. Add edit/delete screens and monthly totals.
 
 ## Release boundary
 
