@@ -84,3 +84,7 @@ other existing sessions follow Identity's normal revalidation behavior.
 
 Task 4 adds the expense-entry page. These services already enforce its core rules,
 but UI validation, busy state, decimal conversion and user feedback remain to build.
+
+## Agreed follow-up policy
+
+On 1 November 2026, the user agreed to a [30-day backup retention policy](backup-retention.md). Automated expiry and deletion-aware restoration are Task 10 work; neither is implemented by the account deletion service.

@@ -42,6 +42,7 @@ public class IdentityDatabaseTests
         Assert.Equal("setup@example.invalid", (await verification.Users.SingleAsync()).Email);
         Assert.Empty(await verification.Categories.ToListAsync());
         Assert.Empty(await verification.Expenses.ToListAsync());
+        Assert.Empty(await verification.AccountDeletionRecords.ToListAsync());
         Assert.Empty(await verification.Database.GetPendingMigrationsAsync());
     }
 }

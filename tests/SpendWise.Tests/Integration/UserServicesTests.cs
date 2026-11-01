@@ -274,6 +274,11 @@ public sealed class UserServicesTests : IAsyncLifetime
         var result = await As("alice", sp => sp.GetRequiredService<AccountDeletionService>()
             .DeleteAsync(confirmed ? "WrongPassword!" : _password, confirmed));
         Assert.Equal(ResultStatus.ValidationFailure, result.Status);
+        await As("alice", async sp =>
+        {
+            Assert.Empty(await sp.GetRequiredService<ApplicationDbContext>().AccountDeletionRecords.ToListAsync());
+            return true;
+        });
         Assert.Equal(8, (await Categories("alice")).Count);
         Assert.Single((await As("alice", sp => sp.GetRequiredService<ExpenseService>().ListAsync(new(2026,11)))).Value!.Items);
     }
@@ -293,6 +298,11 @@ public sealed class UserServicesTests : IAsyncLifetime
             Assert.True(await db.Users.AnyAsync(u => u.Id == "bob"));
             Assert.Equal(bobExpense, (await db.Expenses.SingleAsync()).Id);
             Assert.Equal(8, await db.Categories.CountAsync());
+            var record = Assert.Single(await db.AccountDeletionRecords.ToListAsync());
+            Assert.NotEqual(Guid.Empty, record.Id);
+            Assert.Equal("alice", record.UserId);
+            Assert.Equal(new DateTime(2026, 11, 1, 13, 30, 0), record.DeletedAtUtc);
+            Assert.Null(record.ExportedAtUtc);
             return true;
         });
     }
@@ -307,10 +317,68 @@ public sealed class UserServicesTests : IAsyncLifetime
             // Force failure at the final account delete after expenses/categories were removed.
             await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER FailAccountDelete BEFORE DELETE ON AspNetUsers BEGIN SELECT RAISE(ABORT, 'test failure'); END;");
             await Assert.ThrowsAsync<DbUpdateException>(() => sp.GetRequiredService<AccountDeletionService>().DeleteAsync(_password, true));
+            Assert.Empty(await db.AccountDeletionRecords.ToListAsync());
+            Assert.True(await db.Users.AnyAsync(u => u.Id == "alice"));
             return true;
         });
         Assert.Equal(8, (await Categories("alice")).Count);
         Assert.Equal(ResultStatus.Success, (await As("alice", sp => sp.GetRequiredService<ExpenseService>().GetAsync(id))).Status);
+    }
+
+    [Fact]
+    public async Task DeletionRecordFailure_RollsBackAccountAndData_ThenRetrySucceeds()
+    {
+        var aliceExpense = await AddExpense("alice");
+        var bobExpense = await AddExpense("bob");
+        await As("alice", async sp =>
+        {
+            var db = sp.GetRequiredService<ApplicationDbContext>();
+            // Fail AFTER all SQL DELETEs succeeded, when saving the evidence record.
+            await db.Database.ExecuteSqlRawAsync("CREATE TRIGGER FailDeletionRecord BEFORE INSERT ON AccountDeletionRecords BEGIN SELECT RAISE(ABORT, 'test failure'); END;");
+            await Assert.ThrowsAsync<DbUpdateException>(() => sp.GetRequiredService<AccountDeletionService>().DeleteAsync(_password, true));
+            return true;
+        });
+        // A new scope reads persisted state, not entities cached by the failed operation.
+        await As("alice", async sp =>
+        {
+            var db = sp.GetRequiredService<ApplicationDbContext>();
+            Assert.Empty(await db.AccountDeletionRecords.ToListAsync());
+            Assert.Equal(2, await db.Users.CountAsync());
+            Assert.Equal(8, await db.Categories.CountAsync(c => c.UserId == "alice"));
+            Assert.Equal(8, await db.Categories.CountAsync(c => c.UserId == "bob"));
+            Assert.True(await db.Expenses.AnyAsync(e => e.Id == aliceExpense));
+            Assert.True(await db.Expenses.AnyAsync(e => e.Id == bobExpense));
+            var users = sp.GetRequiredService<UserManager<ApplicationUser>>();
+            Assert.True(await users.CheckPasswordAsync((await users.FindByIdAsync("alice"))!, _password));
+            await db.Database.ExecuteSqlRawAsync("DROP TRIGGER FailDeletionRecord;");
+            return true;
+        });
+        Assert.Equal(ResultStatus.Success, (await As("alice", sp =>
+            sp.GetRequiredService<AccountDeletionService>().DeleteAsync(_password, true))).Status);
+        await As("bob", async sp =>
+        {
+            var db = sp.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal("alice", Assert.Single(await db.AccountDeletionRecords.ToListAsync()).UserId);
+            Assert.Equal("bob", Assert.Single(await db.Users.ToListAsync()).Id);
+            Assert.Equal(bobExpense, Assert.Single(await db.Expenses.ToListAsync()).Id);
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task RepeatedDeletion_DoesNotCreateDuplicateEvidence()
+    {
+        await AddExpense("alice");
+        Assert.Equal(ResultStatus.Success, (await As("alice", sp =>
+            sp.GetRequiredService<AccountDeletionService>().DeleteAsync(_password, true))).Status);
+        // Simulate a stale authenticated request after the first deletion committed.
+        Assert.Equal(ResultStatus.NotFound, (await As("alice", sp =>
+            sp.GetRequiredService<AccountDeletionService>().DeleteAsync(_password, true))).Status);
+        await As("bob", async sp =>
+        {
+            Assert.Single(await sp.GetRequiredService<ApplicationDbContext>().AccountDeletionRecords.ToListAsync());
+            return true;
+        });
     }
 
     private sealed class TestAuthentication : AuthenticationStateProvider

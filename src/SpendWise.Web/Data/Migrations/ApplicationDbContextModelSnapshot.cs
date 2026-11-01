@@ -234,6 +234,33 @@ namespace SpendWise.Web.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
+            modelBuilder.Entity("SpendWise.Web.Models.AccountDeletionRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DeletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ExportedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("AccountDeletionRecords", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccountDeletionRecords_UserId", "length(trim(UserId)) > 0");
+                        });
+                });
+
             modelBuilder.Entity("SpendWise.Web.Models.Category", b =>
                 {
                     b.Property<int>("Id")
