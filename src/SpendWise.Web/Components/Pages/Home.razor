@@ -1,7 +1,46 @@
 @page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject SpendWise.Web.Services.CategoryInitializer Categories
+@inject ILogger<Home> Logger
 
 <PageTitle>SpendWise</PageTitle>
 <h1>SpendWise</h1>
 <p>Your personal expense tracker in Australian dollars.</p>
-<p>The project foundation is ready. Expense entry and your monthly dashboard are the next milestone.</p>
+@if (initializationFailed)
+{
+    <p role="alert">We could not prepare your categories. Please try again.</p>
+    <button class="btn btn-primary" disabled="@loading" @onclick="InitializeAsync">Try again</button>
+}
+else if (loading)
+{
+    <p role="status">Preparing your categories…</p>
+}
+else
+{
+    <p>Your categories are ready. Expense entry and your monthly dashboard are the next milestone.</p>
+}
+
+@code {
+    private bool initializationFailed;
+    private bool loading;
+
+    protected override Task OnInitializedAsync() => InitializeAsync();
+
+    private async Task InitializeAsync()
+    {
+        if (loading) return;
+        loading = true;
+        initializationFailed = false;
+        try
+        {
+            // Prerendering and interactive rendering can both call this; seeding is idempotent.
+            await Categories.EnsureInitializedAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Default category initialization failed.");
+            initializationFailed = true;
+        }
+        finally { loading = false; }
+    }
+}

@@ -27,13 +27,13 @@ public class IdentityDatabaseTests
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             // Reproduce an existing installation before the expense tables were introduced.
             await db.GetService<IMigrator>().MigrateAsync("00000000000000_CreateIdentitySchema");
-            db.Users.Add(new ApplicationUser
-            {
-                Id = "setup-test-user", UserName = "setup@example.invalid",
-                NormalizedUserName = "SETUP@EXAMPLE.INVALID",
-                Email = "setup@example.invalid", NormalizedEmail = "SETUP@EXAMPLE.INVALID"
-            });
-            await db.SaveChangesAsync();
+            // Insert through the old schema: the current entity now has additional columns.
+            await db.Database.ExecuteSqlRawAsync("""
+                INSERT INTO AspNetUsers (Id, UserName, NormalizedUserName, Email, NormalizedEmail,
+                    EmailConfirmed, PhoneNumberConfirmed, TwoFactorEnabled, LockoutEnabled, AccessFailedCount)
+                VALUES ('setup-test-user', 'setup@example.invalid', 'SETUP@EXAMPLE.INVALID',
+                    'setup@example.invalid', 'SETUP@EXAMPLE.INVALID', 0, 0, 0, 0, 0)
+                """);
         }
         await using var verificationScope = provider.CreateAsyncScope();
         var verification = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
