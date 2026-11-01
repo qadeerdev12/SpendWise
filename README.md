@@ -9,6 +9,7 @@ Individual Accounts, SQLite, a test project and a build/test workflow.
 Expense and Category entities, relational constraints and migrations are implemented.
 Owner-scoped services, one-time category initialization and permanent account deletion are implemented.
 Expense forms, ledger screens and dashboard totals are next.
+Deletion evidence now commits atomically with account removal; see the [transaction walkthrough](docs/task3b-transactions.md).
 See [the service walkthrough](docs/task3-services.md) for ownership, transactions and verification.
 See [the data-model walkthrough](docs/data-model.md) for design decisions and test coverage.
 See `docs/SpendWise_Project_Specification.pdf` for the full plan.

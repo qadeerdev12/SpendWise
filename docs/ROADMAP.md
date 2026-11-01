@@ -78,6 +78,17 @@ Target: 2026-11-04 • Estimate: 4 hours • Depends on: T02
 
 Scope addition approved 1 November: permanent account deletion with password, explicit confirmation and atomic removal. Implemented with rollback and isolation tests; see [verification](task3-services.md).
 
+### T03B Record account deletion atomically
+Added 1 November 2026 following Task 3 review.
+
+- [x] Add minimal AccountDeletionRecord without an Identity foreign key.
+- [x] Save the record in the same transaction as account and dependent-data removal.
+- [x] Test invalid requests, failure rollback, retry, timestamp and other-user isolation.
+- [x] Document the transaction with comments and a beginner walkthrough.
+- Independent export, expiry and restore completeness checks remain in T10. Revisit the deployment estimate for this expanded scope.
+
+See [Task 3B walkthrough](task3b-transactions.md).
+
 ### T04 Build validated expense entry
 Target: 2026-11-05 • Estimate: 4 hours • Depends on: T03
 
@@ -132,6 +143,8 @@ Target: 2026-11-13 • Estimate: 4 hours • Depends on: T09
 - [ ] Select an agreed host with HTTPS, WebSockets and persistent SQLite storage; confirm cost before provisioning paid resources.
 - [ ] Deploy one instance, apply migrations safely and run deployed smoke tests.
 - [ ] Verify restart persistence and restore a backup into a separate database.
+- [ ] Implement and verify the agreed [30-day backup retention policy](backup-retention.md), including manual copies and expiry failure reporting.
+- [ ] Implement durable deletion evidence and prove a restore reapplies deletions before application access; review the design before coding.
 - [ ] Complete README/demo and tag v0.1.0 only after AC01–AC08 pass. No real-data public registration until the specification’s email/security gate is met.
 
 ## Stretch backlog after the MVP
