@@ -1,0 +1,58 @@
+@page "/expenses/new"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using SpendWise.Web.Components.Expenses
+@using SpendWise.Web.Contracts
+@inject SpendWise.Web.Services.CategoryInitializer Initializer
+@inject SpendWise.Web.Services.CategoryService Categories
+@inject SpendWise.Web.Services.ExpenseService Expenses
+@inject ILogger<AddExpense> Logger
+
+<PageTitle>Add expense · SpendWise</PageTitle>
+<div class="expense-entry">
+    <h1>Add expense</h1>
+    <p class="text-muted">Record your spending in Australian dollars. Merchant and notes are optional.</p>
+    @if (loading)
+    {
+        <p role="status">Loading your categories…</p>
+    }
+    else if (loadFailed)
+    {
+        <div class="alert alert-danger" role="alert">We could not load your categories.</div>
+        <button class="btn btn-primary" @onclick="LoadAsync">Try again</button>
+    }
+    else if (categories.Count == 0)
+    {
+        <div class="alert alert-info" role="status">You have no active categories. Restore or add a category before recording an expense. Category management is not available in this pilot yet.</div>
+    }
+    else
+    {
+        <ExpenseForm Categories="categories" Save="SaveAsync" />
+    }
+</div>
+
+@code {
+    private IReadOnlyList<CategoryRow> categories = [];
+    private bool loading = true;
+    private bool loadFailed;
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadFailed = false;
+        try
+        {
+            // Direct visits must work too; initialization is safe across prerender/refresh.
+            await Initializer.EnsureInitializedAsync();
+            categories = await Categories.ListAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Expense-entry categories could not be loaded.");
+            loadFailed = true;
+        }
+        finally { loading = false; }
+    }
+
+    private Task<ServiceResult<int>> SaveAsync(ExpenseInput input) => Expenses.CreateAsync(input);
+}

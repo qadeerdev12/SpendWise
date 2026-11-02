@@ -381,6 +381,29 @@ public sealed class UserServicesTests : IAsyncLifetime
         });
     }
 
+    [Fact]
+    public async Task FormInput_PersistsExactCentsAndCannotBeReadByAnotherUser()
+    {
+        await Initialize("alice");
+        var category = (await Categories("alice"))[0];
+        var form = new SpendWise.Web.Components.Expenses.ExpenseFormModel(new FixedClock())
+        {
+            Amount = 24.50m, CategoryId = category.Id,
+            Merchant = "  Grocery store  ", Notes = "  Weekly shopping  "
+        };
+        var result = await As("alice", sp => sp.GetRequiredService<ExpenseService>().CreateAsync(form.ToInput()));
+        Assert.Equal(ResultStatus.Success, result.Status);
+        // A fresh service/context reads the saved record, rather than form or tracked state.
+        var saved = await As("alice", sp => sp.GetRequiredService<ExpenseService>().GetAsync(result.Value));
+        Assert.Equal(2450, saved.Value!.AmountCents);
+        Assert.Equal(Today, saved.Value.ExpenseDate);
+        Assert.Equal(category.Id, saved.Value.CategoryId);
+        Assert.Equal("Grocery store", saved.Value.Merchant);
+        Assert.Equal("Weekly shopping", saved.Value.Notes);
+        Assert.Equal(ResultStatus.NotFound, (await As("bob", sp =>
+            sp.GetRequiredService<ExpenseService>().GetAsync(result.Value))).Status);
+    }
+
     private sealed class TestAuthentication : AuthenticationStateProvider
     {
         public string? UserId { get; set; }

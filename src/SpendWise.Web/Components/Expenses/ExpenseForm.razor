@@ -1,0 +1,111 @@
+@using System.Globalization
+@using SpendWise.Web.Contracts
+@inject TimeProvider Clock
+@inject ILogger<ExpenseForm> Logger
+
+@if (success is not null)
+{
+    <div class="alert alert-success" role="status">@success</div>
+}
+@if (error is not null)
+{
+    <div class="alert alert-danger" role="alert">@error</div>
+}
+<EditForm @key="model" EditContext="editContext" OnSubmit="SubmitAsync" FormName="expense-entry" novalidate>
+    <DataAnnotationsValidator />
+    <ValidationSummary class="text-danger" role="alert" />
+    <fieldset disabled="@(saving || !interactive)">
+        <legend class="visually-hidden">Expense details</legend>
+        <div class="row g-3">
+            <div class="col-sm-6">
+                <label for="expense-amount" class="form-label">Amount (AUD)</label>
+                <InputNumber id="expense-amount" @bind-Value="model.Amount" class="form-control" step="any" inputmode="decimal" placeholder="24.50" aria-describedby="amount-help" />
+                <div id="amount-help" class="form-text">A$0.01–A$999,999.99. Up to two decimal places.</div>
+                <ValidationMessage For="() => model.Amount" />
+            </div>
+            <div class="col-sm-6">
+                <label for="expense-date" class="form-label">Date</label>
+                <InputDate id="expense-date" @bind-Value="model.ExpenseDate" class="form-control" min="2000-01-01" max="@ExpenseFormModel.Today(Clock).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" aria-describedby="date-help" />
+                <div id="date-help" class="form-text">Today and date limits use Sydney time.</div>
+                <ValidationMessage For="() => model.ExpenseDate" />
+            </div>
+            <div class="col-12">
+                <label for="expense-category" class="form-label">Category</label>
+                <InputSelect id="expense-category" @bind-Value="model.CategoryId" class="form-select">
+                    <option value="0">Choose a category</option>
+                    @foreach (var category in Categories)
+                    {
+                        <option value="@category.Id">@category.Name</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="() => model.CategoryId" />
+            </div>
+            <div class="col-12">
+                <label for="expense-merchant" class="form-label">Merchant <span class="text-muted">(optional)</span></label>
+                <InputText id="expense-merchant" @bind-Value="model.Merchant" class="form-control" aria-describedby="merchant-help" />
+                <div id="merchant-help" class="form-text">Up to 100 characters.</div>
+                <ValidationMessage For="() => model.Merchant" />
+            </div>
+            <div class="col-12">
+                <label for="expense-notes" class="form-label">Notes <span class="text-muted">(optional)</span></label>
+                <InputTextArea id="expense-notes" @bind-Value="model.Notes" class="form-control" rows="3" aria-describedby="notes-help" />
+                <div id="notes-help" class="form-text">Up to 500 characters.</div>
+                <ValidationMessage For="() => model.Notes" />
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-4">@(saving ? "Saving…" : "Save expense")</button>
+    </fieldset>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<CategoryRow> Categories { get; set; } = [];
+    // The page chooses the persistence operation; this form owns input and feedback only.
+    [Parameter, EditorRequired] public Func<ExpenseInput, Task<ServiceResult<int>>> Save { get; set; } = default!;
+    private ExpenseFormModel model = default!;
+    private EditContext editContext = default!;
+    private bool saving;
+    private bool interactive;
+    private string? error;
+    private string? success;
+
+    protected override void OnInitialized() => ResetForm();
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Prerendered HTML must not submit before the interactive circuit is connected.
+        if (firstRender) { interactive = true; StateHasChanged(); }
+    }
+
+    private void ResetForm(DateOnly? date = null, int categoryId = 0)
+    {
+        model = new(Clock) { ExpenseDate = date ?? ExpenseFormModel.Today(Clock), CategoryId = categoryId };
+        editContext = new(model);
+    }
+
+    private async Task SubmitAsync()
+    {
+        // Set this before awaiting: another submit on the same circuit cannot start a save.
+        if (saving || !interactive) return;
+        error = success = null;
+        if (!editContext.Validate()) return;
+        saving = true;
+        try
+        {
+            var input = model.ToInput();
+            var result = await Save(input);
+            if (result.Status != ResultStatus.Success)
+            {
+                error = result.Error ?? "We could not save this expense. Review your details and try again.";
+                return; // Preserve the entered values on a service validation failure.
+            }
+            success = $"Expense saved: A${(input.AmountCents / 100m).ToString("N2", CultureInfo.GetCultureInfo("en-AU"))}. You can add another expense.";
+            // A new EditContext clears validation state, while date/category speed up repeat entry.
+            ResetForm(input.ExpenseDate, input.CategoryId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Expense submission failed.");
+            error = "We could not confirm that this expense was saved. Your entries have been kept. Avoid repeated retries if the connection is unstable.";
+        }
+        finally { saving = false; }
+    }
+}
