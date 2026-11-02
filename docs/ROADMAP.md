@@ -92,10 +92,12 @@ See [Task 3B walkthrough](task3b-transactions.md).
 ### T04 Build validated expense entry
 Target: 2026-11-05 • Estimate: 4 hours • Depends on: T03
 
-- [ ] Build reusable form for amount, date, category, merchant and notes.
-- [ ] Validate amount/date/length rules in the service and UI.
-- [ ] Prevent repeated saves while busy and preserve input on validation failures.
-- [ ] Save one expense and verify it survives refresh; test boundary amounts and Sydney dates.
+- [x] Build reusable form for amount, date, category, merchant and notes.
+- [x] Validate amount/date/length rules in the service and UI.
+- [x] Prevent repeated saves while busy and preserve input on validation failures.
+- [x] Save one expense and verify it survives refresh; test boundary amounts and Sydney dates.
+
+Implemented 2 November 2026. See [Task 4 verification and walkthrough](task4-expense-entry.md).
 
 ### T05 Build filtered and paged expense ledger
 Target: 2026-11-06 • Estimate: 4 hours • Depends on: T04
