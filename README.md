@@ -8,7 +8,8 @@ Implemented foundation: .NET 10 Blazor Web App, Interactive Server rendering,
 Individual Accounts, SQLite, a test project and a build/test workflow.
 Expense and Category entities, relational constraints and migrations are implemented.
 Owner-scoped services, one-time category initialization and permanent account deletion are implemented.
-Validated expense entry is implemented; ledger screens and dashboard totals are next.
+Validated expense entry and a filtered, paginated ledger are implemented. Editing/deletion screens and dashboard totals are next.
+See [the ledger walkthrough](docs/task5-ledger.md) for filtering, pagination and verification.
 See [the expense-entry walkthrough](docs/task4-expense-entry.md) for form behavior and verification.
 Deletion evidence now commits atomically with account removal; see the [transaction walkthrough](docs/task3b-transactions.md).
 See [the service walkthrough](docs/task3-services.md) for ownership, transactions and verification.
@@ -70,9 +71,9 @@ Target: 13 November 2026, working 3–4 hours per weekday.
 
 ## Next milestone
 
-1. Display expenses in a filtered, paged ledger.
-2. Add edit/delete screens.
-3. Build monthly totals and category management.
+1. Add expense edit/delete screens.
+2. Build monthly totals.
+3. Complete category management.
 
 ## Release boundary
 

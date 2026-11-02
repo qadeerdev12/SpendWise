@@ -102,10 +102,12 @@ Implemented 2 November 2026. See [Task 4 verification and walkthrough](task4-exp
 ### T05 Build filtered and paged expense ledger
 Target: 2026-11-06 • Estimate: 4 hours • Depends on: T04
 
-- [ ] Display owned expenses ordered by date descending then ID descending.
-- [ ] Implement month selector, optional category filter and 20-row paging.
-- [ ] Reset paging on filter changes and show useful empty/loading/error states.
-- [ ] Test month boundaries and exclusion of the other user’s data.
+- [x] Display owned expenses ordered by date descending then ID descending.
+- [x] Implement month selector, optional category filter and 20-row paging.
+- [x] Reset paging on filter changes and show useful empty/loading/error states.
+- [x] Test month boundaries and exclusion of the other user’s data.
+
+Implemented 2 November 2026. See [Task 5 verification and walkthrough](task5-ledger.md).
 
 ### T06 Implement expense editing and confirmed deletion
 Target: 2026-11-09 • Estimate: 4 hours • Depends on: T05

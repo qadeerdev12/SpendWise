@@ -1,0 +1,11 @@
+/* Keep wide ledger content inside its own keyboard-accessible scroll region. */
+.ledger { max-width: 65rem; min-width: 0; padding-bottom: 2rem; }
+.ledger-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.ledger-filters { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.ledger-filters > div { flex: 1 1 12rem; max-width: 22rem; min-width: 0; }
+.ledger-table { overflow-x: auto; max-width: 100%; }
+.table { min-width: 34rem; }
+.date, .amount { white-space: nowrap; }
+.amount { text-align: right; font-variant-numeric: tabular-nums; }
+.merchant { max-width: 22rem; overflow-wrap: anywhere; }
+.ledger-paging { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: 1rem; flex-wrap: wrap; }

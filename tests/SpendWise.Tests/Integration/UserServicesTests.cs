@@ -404,6 +404,46 @@ public sealed class UserServicesTests : IAsyncLifetime
             sp.GetRequiredService<ExpenseService>().GetAsync(result.Value))).Status);
     }
 
+    [Fact]
+    public async Task Ledger_MonthBoundariesArchivedFiltersAndStableOrdering()
+    {
+        await Initialize("alice");
+        await AddExpense("bob");
+        var category = (await Categories("alice"))[0].Id;
+        var other = (await Categories("alice"))[1].Id;
+        await As("alice", async sp =>
+        {
+            var service = sp.GetRequiredService<ExpenseService>();
+            var october = await service.CreateAsync(new(1, new(2026, 10, 31), category));
+            var first = await service.CreateAsync(new(29, new(2026, 11, 1), category));
+            var second = await service.CreateAsync(new(2450, new(2026, 11, 1), category));
+            var newest = await service.CreateAsync(new(99999999, Today, other));
+            await sp.GetRequiredService<CategoryService>().SetArchivedAsync(category, true);
+            var november = (await service.ListAsync(new(2026, 11))).Value!;
+            Assert.Equal(3, november.TotalCount);
+            Assert.Equal(new[] { newest.Value, second.Value, first.Value }, november.Items.Select(e => e.Id));
+            Assert.Equal(october.Value, Assert.Single((await service.ListAsync(new(2026, 10))).Value!.Items).Id);
+            var archived = (await service.ListAsync(new(2026, 11, category))).Value!;
+            Assert.Equal(2, archived.TotalCount);
+            Assert.Equal(new long[] { 2450, 29 }, archived.Items.Select(e => e.AmountCents));
+            Assert.DoesNotContain(await sp.GetRequiredService<CategoryService>().ListAsync(), c => c.Id == category);
+            Assert.Contains(await sp.GetRequiredService<CategoryService>().ListAsync(true), c => c.Id == category && c.IsArchived);
+            return true;
+        });
+    }
+
+    [Theory]
+    [InlineData(1999, 12, 1)]
+    [InlineData(2026, 0, 1)]
+    [InlineData(2026, 13, 1)]
+    [InlineData(2026, 12, 1)]
+    [InlineData(2026, 11, 0)]
+    public async Task Ledger_InvalidFiltersReturnValidation(int year, int month, int page)
+    {
+        var result = await As("alice", sp => sp.GetRequiredService<ExpenseService>().ListAsync(new(year, month, Page: page)));
+        Assert.Equal(ResultStatus.ValidationFailure, result.Status);
+    }
+
     private sealed class TestAuthentication : AuthenticationStateProvider
     {
         public string? UserId { get; set; }
