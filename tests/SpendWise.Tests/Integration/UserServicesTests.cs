@@ -444,6 +444,73 @@ public sealed class UserServicesTests : IAsyncLifetime
         Assert.Equal(ResultStatus.ValidationFailure, result.Status);
     }
 
+    [Fact]
+    public async Task Edit_UpdatesEveryFieldPreservesOwnerAndCreationTimeAndMovesFilters()
+    {
+        var id = await AddExpense("alice");
+        var other = (await Categories("alice"))[1].Id;
+        await As("alice", async sp =>
+        {
+            var result = await sp.GetRequiredService<ExpenseService>().UpdateAsync(id,
+                new(29, new(2026,10,31), other, "  New shop  ", "  Corrected  "));
+            Assert.Equal(ResultStatus.Success, result.Status);
+            return true;
+        });
+        await As("alice", async sp =>
+        {
+            var db = sp.GetRequiredService<ApplicationDbContext>();
+            var saved = await db.Expenses.SingleAsync(e => e.Id == id);
+            Assert.Equal("alice", saved.UserId);
+            Assert.Equal(new DateTime(2026,11,1,13,30,0), saved.CreatedAtUtc);
+            Assert.Equal(29, saved.AmountCents);
+            Assert.Equal("New shop", saved.Merchant);
+            Assert.Equal("Corrected", saved.Notes);
+            Assert.Equal(other, saved.CategoryId);
+            var service = sp.GetRequiredService<ExpenseService>();
+            Assert.Empty((await service.ListAsync(new(2026,11))).Value!.Items);
+            Assert.Equal(id, Assert.Single((await service.ListAsync(new(2026,10,other))).Value!.Items).Id);
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task InvalidEdit_PreservesStoredExpense_AndDeletedRecordIsUnavailable()
+    {
+        var id = await AddExpense("alice");
+        await As("alice", async sp =>
+        {
+            var service = sp.GetRequiredService<ExpenseService>();
+            var original = (await service.GetAsync(id)).Value!;
+            Assert.Equal(ResultStatus.ValidationFailure, (await service.UpdateAsync(id,
+                new(0, Today, original.CategoryId, "Must not persist"))).Status);
+            Assert.Equal(original, (await service.GetAsync(id)).Value);
+            Assert.Equal(ResultStatus.Success, (await service.DeleteAsync(id)).Status);
+            Assert.Equal(ResultStatus.NotFound, (await service.GetAsync(id)).Status);
+            Assert.Equal(ResultStatus.NotFound, (await service.UpdateAsync(id, new(100, Today, original.CategoryId))).Status);
+            Assert.Equal(ResultStatus.NotFound, (await service.DeleteAsync(id)).Status);
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task DeletingLastRowOnSecondPage_LeavesTwentyRowsOnFirstPage()
+    {
+        await Initialize("alice");
+        var category = (await Categories("alice"))[0].Id;
+        await As("alice", async sp =>
+        {
+            var service = sp.GetRequiredService<ExpenseService>();
+            for (var i = 0; i < 21; i++) await service.CreateAsync(new(100, Today, category));
+            var last = Assert.Single((await service.ListAsync(new(2026,11,Page:2))).Value!.Items);
+            await service.DeleteAsync(last.Id);
+            var second = (await service.ListAsync(new(2026,11,Page:2))).Value!;
+            Assert.Equal(20, second.TotalCount);
+            Assert.Empty(second.Items);
+            Assert.Equal(20, (await service.ListAsync(new(2026,11))).Value!.Items.Count);
+            return true;
+        });
+    }
+
     private sealed class TestAuthentication : AuthenticationStateProvider
     {
         public string? UserId { get; set; }

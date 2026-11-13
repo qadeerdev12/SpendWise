@@ -1,0 +1,94 @@
+@page "/expenses/{Id:int}/edit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using SpendWise.Web.Contracts
+@using SpendWise.Web.Components.Expenses
+@inherits ExpenseNavigationPage
+@inject SpendWise.Web.Services.ExpenseService Expenses
+@inject SpendWise.Web.Services.CategoryService Categories
+@inject ExpenseFeedback Feedback
+@inject ILogger<EditExpense> Logger
+
+<PageTitle>Edit expense · SpendWise</PageTitle>
+<div style="max-width:44rem;padding-bottom:2rem">
+    <h1>Edit expense</h1>
+    @if (loading)
+    {
+        <p role="status">Loading expense…</p>
+    }
+    else if (loadError)
+    {
+        <div role="alert" class="alert alert-danger">We could not load this expense.</div>
+        <button class="btn btn-primary" @onclick="LoadAsync">Try again</button>
+        <a class="ms-3" href="@ReturnLocation.Url()">Back to expenses</a>
+    }
+    else if (expense is null)
+    {
+        <p role="alert">Expense unavailable.</p>
+        <a href="@ReturnLocation.Url()">Back to expenses</a>
+    }
+    else
+    {
+        <p>Update the details below. An existing archived category may be kept.</p>
+        <ExpenseForm @key="expense" InitialExpense="expense" Categories="categories" Save="SaveAsync" OnSaved="Saved" OnCancel="Cancel" />
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ExpenseRow? expense;
+    private IReadOnlyList<CategoryRow> categories = [];
+    private bool loading;
+    private bool loadError;
+    private int loadVersion;
+    protected override Task OnParametersSetAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var version = ++loadVersion;
+        var id = Id;
+        loading = true;
+        loadError = false;
+        expense = null;
+        try
+        {
+            // GetAsync scopes by authenticated owner; a URL ID alone grants no access.
+            var response = await Expenses.GetAsync(id);
+            if (version != loadVersion) return;
+            if (response.Status != ResultStatus.Success) return;
+            var loaded = response.Value!;
+            var all = await Categories.ListAsync(includeArchived: true);
+            if (version != loadVersion) return;
+            categories = all.Where(c => !c.IsArchived || c.Id == loaded.CategoryId).ToList();
+            expense = loaded;
+        }
+        catch (Exception ex)
+        {
+            if (version != loadVersion) return;
+            Logger.LogError(ex, "Expense edit could not load.");
+            loadError = true;
+        }
+        finally { if (version == loadVersion) loading = false; }
+    }
+
+    private async Task<ServiceResult<int>> SaveAsync(ExpenseInput input)
+    {
+        var id = expense!.Id;
+        // Recheck ownership and archive rules at write time, not just when opening the page.
+        var response = await Expenses.UpdateAsync(id, input);
+        if (response.Status == ResultStatus.NotFound)
+        {
+            expense = null;
+            return new(ResultStatus.NotFound, default, "Expense unavailable.");
+        }
+        return response.Status == ResultStatus.Success
+            ? ServiceResult<int>.Success(id)
+            : ServiceResult<int>.Invalid(response.Error ?? "We could not update this expense.");
+    }
+
+    private void Saved()
+    {
+        Feedback.Message = "Expense updated. If you changed its date or category, it may no longer match these filters.";
+        Navigation.NavigateTo(ReturnLocation.Url());
+    }
+    private void Cancel() => Navigation.NavigateTo(ReturnLocation.Url());
+}

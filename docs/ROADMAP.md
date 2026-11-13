@@ -117,6 +117,8 @@ Target: 2026-11-09 • Estimate: 4 hours • Depends on: T05
 - [ ] Refresh ledger and totals after successful writes and handle deleting a page’s last row.
 - [ ] Test persistence, invalid changes and already-deleted records.
 
+Implementation and 73 automated tests completed 14 November 2026. Edit/save, archived-category handling and Cancel paths verified in the browser. Final browser deletion awaits test-action confirmation. See [Task 6 walkthrough](task6-edit-delete.md).
+
 ### T07 Build monthly spending dashboard
 Target: 2026-11-10 • Estimate: 4 hours • Depends on: T06
 

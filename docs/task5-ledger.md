@@ -16,9 +16,8 @@ controls. If another operation removes the last page, the next load clamps to th
 last available page and queries it again. Controls are disabled while loading to
 avoid overlapping requests. Loading and error states hide stale results. Retry
 preserves filters. Empty results explain how to change the filters or add an expense.
-Filters are component state: refresh or leaving/reopening the page resets them to
-the current month, all categories and page 1. URL-persisted filters are not part of
-this MVP task.
+Task 6 subsequently moved filters/page into validated URL query parameters, preserving
+them across refresh and edit/delete navigation; see [Task 6](task6-edit-delete.md).
 
 Home, signed-in navigation and the entry page link to Expenses. The ledger links
 to Add expense. Editing/deletion buttons remain Task 6.

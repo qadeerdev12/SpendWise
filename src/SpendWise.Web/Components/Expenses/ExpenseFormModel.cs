@@ -36,6 +36,16 @@ public sealed class ExpenseFormModel(TimeProvider clock) : IValidatableObject
             yield return new("Notes must be at most 500 characters.", [nameof(Notes)]);
     }
 
+    public static ExpenseFormModel FromExpense(ExpenseRow expense, TimeProvider clock) => new(clock)
+    {
+        // Integer cents become decimal dollars exactly; both create and edit share validation.
+        Amount = expense.AmountCents / 100m,
+        ExpenseDate = expense.ExpenseDate,
+        CategoryId = expense.CategoryId,
+        Merchant = expense.Merchant,
+        Notes = expense.Notes
+    };
+
     public ExpenseInput ToInput()
     {
         // Defend the conversion boundary even if a future caller skips form validation.
