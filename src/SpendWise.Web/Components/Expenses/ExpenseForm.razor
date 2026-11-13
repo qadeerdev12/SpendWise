@@ -35,7 +35,7 @@
                     <option value="0">Choose a category</option>
                     @foreach (var category in Categories)
                     {
-                        <option value="@category.Id">@category.Name</option>
+                        <option value="@category.Id">@category.Name@(category.IsArchived ? " (archived — current category)" : "")</option>
                     }
                 </InputSelect>
                 <ValidationMessage For="() => model.CategoryId" />
@@ -53,7 +53,11 @@
                 <ValidationMessage For="() => model.Notes" />
             </div>
         </div>
-        <button type="submit" class="btn btn-primary mt-4">@(saving ? "Saving…" : "Save expense")</button>
+        <button type="submit" class="btn btn-primary mt-4">@(saving ? "Saving…" : InitialExpense is null ? "Save expense" : "Save changes")</button>
+        @if (InitialExpense is not null)
+        {
+            <button type="button" class="btn btn-outline-secondary mt-4 ms-2" @onclick="() => OnCancel.InvokeAsync()">Cancel</button>
+        }
     </fieldset>
 </EditForm>
 
@@ -61,6 +65,9 @@
     [Parameter, EditorRequired] public IReadOnlyList<CategoryRow> Categories { get; set; } = [];
     // The page chooses the persistence operation; this form owns input and feedback only.
     [Parameter, EditorRequired] public Func<ExpenseInput, Task<ServiceResult<int>>> Save { get; set; } = default!;
+    [Parameter] public ExpenseRow? InitialExpense { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
     private ExpenseFormModel model = default!;
     private EditContext editContext = default!;
     private bool saving;
@@ -68,7 +75,15 @@
     private string? error;
     private string? success;
 
-    protected override void OnInitialized() => ResetForm();
+    protected override void OnInitialized()
+    {
+        ResetForm();
+        if (InitialExpense is { } expense)
+        {
+            model = ExpenseFormModel.FromExpense(expense, Clock);
+            editContext = new(model);
+        }
+    }
     protected override void OnAfterRender(bool firstRender)
     {
         // Prerendered HTML must not submit before the interactive circuit is connected.
@@ -88,6 +103,7 @@
         error = success = null;
         if (!editContext.Validate()) return;
         saving = true;
+        var saved = false;
         try
         {
             var input = model.ToInput();
@@ -97,9 +113,13 @@
                 error = result.Error ?? "We could not save this expense. Review your details and try again.";
                 return; // Preserve the entered values on a service validation failure.
             }
-            success = $"Expense saved: A${(input.AmountCents / 100m).ToString("N2", CultureInfo.GetCultureInfo("en-AU"))}. You can add another expense.";
-            // A new EditContext clears validation state, while date/category speed up repeat entry.
-            ResetForm(input.ExpenseDate, input.CategoryId);
+            saved = true;
+            if (InitialExpense is null)
+            {
+                success = $"Expense saved: A${(input.AmountCents / 100m).ToString("N2", CultureInfo.GetCultureInfo("en-AU"))}. You can add another expense.";
+                // A new EditContext clears validation state, while date/category speed up repeat entry.
+                ResetForm(input.ExpenseDate, input.CategoryId);
+            }
         }
         catch (Exception ex)
         {
@@ -107,5 +127,8 @@
             error = "We could not confirm that this expense was saved. Your entries have been kept. Avoid repeated retries if the connection is unstable.";
         }
         finally { saving = false; }
+        // Navigation happens after persistence handling, so navigation failures are not
+        // misreported as failed saves. Create mode keeps its existing repeat-entry behavior.
+        if (saved && InitialExpense is not null) await OnSaved.InvokeAsync();
     }
 }

@@ -1,0 +1,105 @@
+@page "/expenses/{Id:int}/delete"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using SpendWise.Web.Contracts
+@using SpendWise.Web.Components.Expenses
+@inherits ExpenseNavigationPage
+@inject SpendWise.Web.Services.ExpenseService Expenses
+@inject ExpenseFeedback Feedback
+@inject ILogger<DeleteExpense> Logger
+
+<PageTitle>Delete expense · SpendWise</PageTitle>
+<div style="max-width:44rem;padding-bottom:2rem">
+    <h1>Delete expense</h1>
+    @if (loading)
+    {
+        <p role="status">Loading expense…</p>
+    }
+    else if (loadError)
+    {
+        <div role="alert" class="alert alert-danger">We could not load this expense.</div>
+        <button class="btn btn-primary" @onclick="LoadAsync">Try again</button>
+        <a class="ms-3" href="@ReturnLocation.Url()">Back to expenses</a>
+    }
+    else if (expense is null)
+    {
+        <p role="alert">Expense unavailable.</p>
+        <a href="@ReturnLocation.Url()">Back to expenses</a>
+    }
+    else
+    {
+        <p class="alert alert-warning">This permanently deletes the expense below. This cannot be undone.</p>
+        <dl class="row">
+            <dt class="col-sm-3">Amount</dt><dd class="col-sm-9">A$@((expense.AmountCents / 100m).ToString("N2", CultureInfo.GetCultureInfo("en-AU")))</dd>
+            <dt class="col-sm-3">Date</dt><dd class="col-sm-9">@expense.ExpenseDate.ToString("dd MMM yyyy", CultureInfo.GetCultureInfo("en-AU"))</dd>
+            <dt class="col-sm-3">Merchant</dt><dd class="col-sm-9" style="overflow-wrap:anywhere">@(expense.Merchant ?? "Not provided")</dd>
+            <dt class="col-sm-3">Category</dt><dd class="col-sm-9">@expense.CategoryName</dd>
+        </dl>
+        @if (error is not null) { <p role="alert" class="alert alert-danger">@error</p> }
+        <button class="btn btn-outline-secondary me-2" disabled="@(busy || !interactive)" @onclick="Cancel">Cancel</button>
+        <button class="btn btn-danger" disabled="@(busy || !interactive)" @onclick="ConfirmAsync">@(busy ? "Deleting…" : "Permanently delete expense")</button>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private ExpenseRow? expense;
+    private bool loading;
+    private bool loadError;
+    private bool busy;
+    private bool interactive;
+    private string? error;
+    private int loadVersion;
+    protected override Task OnParametersSetAsync() => LoadAsync();
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender) { interactive = true; StateHasChanged(); }
+    }
+
+    private async Task LoadAsync()
+    {
+        var version = ++loadVersion;
+        loading = true;
+        loadError = false;
+        error = null;
+        expense = null;
+        try
+        {
+            // Viewing the confirmation page only reads data; it never performs deletion.
+            var response = await Expenses.GetAsync(Id);
+            if (version == loadVersion && response.Status == ResultStatus.Success) expense = response.Value;
+        }
+        catch (Exception ex)
+        {
+            if (version != loadVersion) return;
+            Logger.LogError(ex, "Expense deletion confirmation could not load.");
+            loadError = true;
+        }
+        finally { if (version == loadVersion) loading = false; }
+    }
+
+    private async Task ConfirmAsync()
+    {
+        if (busy || !interactive || expense is null) return;
+        busy = true;
+        error = null;
+        ServiceResult<bool> response;
+        try
+        {
+            // Use the displayed record's ID and let the service recheck ownership.
+            response = await Expenses.DeleteAsync(expense.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Expense deletion failed.");
+            error = "We could not confirm deletion. Return to the ledger to check before trying again.";
+            return;
+        }
+        finally { busy = false; }
+        if (response.Status == ResultStatus.NotFound) { expense = null; return; }
+        if (response.Status != ResultStatus.Success) { error = response.Error; return; }
+        Feedback.Message = "Expense deleted.";
+        Navigation.NavigateTo(ReturnLocation.Url());
+    }
+    private void Cancel() => Navigation.NavigateTo(ReturnLocation.Url());
+}

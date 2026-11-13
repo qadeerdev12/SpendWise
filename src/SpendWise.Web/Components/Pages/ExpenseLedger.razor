@@ -2,10 +2,12 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using System.Globalization
 @using SpendWise.Web.Contracts
+@using SpendWise.Web.Components.Expenses
+@inherits ExpenseNavigationPage
+@inject ExpenseFeedback Feedback
 @inject SpendWise.Web.Services.ExpenseService Expenses
 @inject SpendWise.Web.Services.CategoryService Categories
 @inject SpendWise.Web.Services.CategoryInitializer Initializer
-@inject TimeProvider Clock
 @inject ILogger<ExpenseLedger> Logger
 
 <PageTitle>Expenses · SpendWise</PageTitle>
@@ -14,6 +16,10 @@
         <div><h1>Expenses</h1><p class="text-muted">Your spending, newest first. All amounts are in AUD.</p></div>
         <a class="btn btn-primary" href="expenses/new">Add expense</a>
     </div>
+    @if (message is not null)
+    {
+        <div class="alert alert-success" role="status">@message</div>
+    }
     <fieldset disabled="@(loading || !interactive)" class="ledger-filters">
         <legend class="visually-hidden">Filter expenses</legend>
         <div>
@@ -52,7 +58,7 @@
         <div class="ledger-table" role="region" aria-label="Expense results; scroll horizontally on small screens" tabindex="0">
             <table class="table table-striped align-middle">
                 <caption class="visually-hidden">Expenses for @month, ordered by date and ID descending</caption>
-                <thead><tr><th scope="col">Date</th><th scope="col">Merchant</th><th scope="col">Category</th><th scope="col" class="amount">Amount (AUD)</th></tr></thead>
+                <thead><tr><th scope="col">Date</th><th scope="col">Merchant</th><th scope="col">Category</th><th scope="col" class="amount">Amount (AUD)</th><th scope="col">Actions</th></tr></thead>
                 <tbody>
                     @foreach (var expense in result.Items)
                     {
@@ -61,6 +67,10 @@
                             <td class="merchant">@(expense.Merchant ?? "Not provided")</td>
                             <td>@expense.CategoryName</td>
                             <td class="amount">A$@((expense.AmountCents / 100m).ToString("N2", Australian))</td>
+                            <td class="text-nowrap">
+                                <a href="@Location.Url($"expenses/{expense.Id}/edit")" aria-label="@($"Edit expense {expense.Id}")">Edit</a>
+                                <a class="text-danger ms-3" href="@Location.Url($"expenses/{expense.Id}/delete")" aria-label="@($"Delete expense {expense.Id}")">Delete</a>
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -84,90 +94,103 @@
     private bool loading;
     private bool interactive;
     private string? error;
+    private string? message;
+    private int loadVersion;
+    private LedgerLocation Location => new(month, categoryId, page);
     private ExpensePage? result;
     private IReadOnlyList<CategoryRow> categories = [];
     private int TotalPages => result is null ? 1 : Math.Max(1, (int)Math.Ceiling(result.TotalCount / (double)result.PageSize));
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        month = CurrentMonth;
+        // Query parameters change on back/forward navigation as well as filter clicks.
+        var location = ReturnLocation;
+        month = location.Month;
+        categoryId = location.CategoryId;
+        page = location.Page;
+        message = Feedback.Take() ?? message;
         await LoadAsync();
     }
 
     protected override void OnAfterRender(bool firstRender)
     {
+        if (!loading && result is not null && Navigation.ToBaseRelativePath(Navigation.Uri) != Location.Url())
+            Navigation.NavigateTo(Location.Url(), replace: true);
         // Prerendered controls wait for the interactive circuit before accepting changes.
         if (firstRender) { interactive = true; StateHasChanged(); }
     }
 
-    private async Task MonthChangedAsync(ChangeEventArgs args)
+    private void MonthChangedAsync(ChangeEventArgs args)
     {
         if (loading) return;
-        month = args.Value?.ToString() ?? "";
-        page = 1; // A different filter starts at the first page, never an old offset.
-        await LoadAsync();
+        var selected = LedgerLocation.FromQuery(args.Value?.ToString(), categoryId.ToString(), "1", Clock);
+        Navigation.NavigateTo(selected.Url());
     }
 
-    private async Task CategoryChangedAsync(ChangeEventArgs args)
+    private void CategoryChangedAsync(ChangeEventArgs args)
     {
         if (loading) return;
-        categoryId = int.TryParse(args.Value?.ToString(), out var id) && id > 0 ? id : 0;
-        page = 1;
-        await LoadAsync();
+        var selected = LedgerLocation.FromQuery(month, args.Value?.ToString(), "1", Clock);
+        Navigation.NavigateTo(selected.Url());
     }
 
-    private async Task PreviousAsync()
+    private void PreviousAsync()
     {
-        if (loading || page <= 1) return;
-        page--;
-        await LoadAsync();
+        if (!loading && page > 1) Navigation.NavigateTo((Location with { Page = page - 1 }).Url());
     }
 
-    private async Task NextAsync()
+    private void NextAsync()
     {
-        if (loading || page >= TotalPages) return;
-        page++;
-        await LoadAsync();
+        if (!loading && page < TotalPages) Navigation.NavigateTo((Location with { Page = page + 1 }).Url());
     }
 
     private async Task LoadAsync()
     {
-        if (loading) return;
+        // A back/forward navigation can overtake an in-flight query. Only the newest
+        // request may publish results or clear the loading state.
+        var version = ++loadVersion;
+        var requested = Location;
         loading = true;
         error = null;
         result = null; // Never display old rows under newly selected filters or after an error.
         try
         {
-            if (!DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+            if (!DateOnly.TryParseExact(requested.Month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             {
                 error = "Choose a month from January 2000 through the current month in Sydney.";
                 return;
             }
             await Initializer.EnsureInitializedAsync();
             // Archived categories remain filterable because their historical expenses remain.
-            categories = await Categories.ListAsync(includeArchived: true);
-            var response = await Expenses.ListAsync(new(date.Year, date.Month, categoryId == 0 ? null : categoryId, page));
+            var loadedCategories = await Categories.ListAsync(includeArchived: true);
+            var response = await Expenses.ListAsync(new(date.Year, date.Month, requested.CategoryId == 0 ? null : requested.CategoryId, requested.Page));
+            if (version != loadVersion) return;
+            categories = loadedCategories;
             if (response.Status != ResultStatus.Success)
             {
                 error = response.Error;
                 return;
             }
-            result = response.Value!;
-            // Another tab may remove rows while this page is open. Recover an empty last page.
-            if (page > TotalPages)
+            var loaded = response.Value!;
+            var lastPage = Math.Max(1, (int)Math.Ceiling(loaded.TotalCount / (double)loaded.PageSize));
+            if (requested.Page > lastPage)
             {
-                page = TotalPages;
-                response = await Expenses.ListAsync(new(date.Year, date.Month, categoryId == 0 ? null : categoryId, page));
-                result = response.Status == ResultStatus.Success ? response.Value : null;
-                error = response.Status == ResultStatus.Success ? null : response.Error;
+                requested = requested with { Page = lastPage };
+                response = await Expenses.ListAsync(new(date.Year, date.Month, requested.CategoryId == 0 ? null : requested.CategoryId, requested.Page));
+                if (version != loadVersion) return;
+                if (response.Status != ResultStatus.Success) { error = response.Error; return; }
+                loaded = response.Value!;
+                page = lastPage;
             }
+            result = loaded;
         }
         catch (Exception ex)
         {
+            if (version != loadVersion) return;
             Logger.LogError(ex, "Expense ledger could not be loaded.");
             result = null;
             error = "We could not load your expenses. Your filters have been kept. Please try again.";
         }
-        finally { loading = false; }
+        finally { if (version == loadVersion) loading = false; }
     }
 }

@@ -112,10 +112,12 @@ Implemented 2 November 2026. See [Task 5 verification and walkthrough](task5-led
 ### T06 Implement expense editing and confirmed deletion
 Target: 2026-11-09 • Estimate: 4 hours • Depends on: T05
 
-- [ ] Reuse the form for editing and require confirmation before deletion.
-- [ ] Treat missing and foreign-owned IDs as unavailable.
-- [ ] Refresh ledger and totals after successful writes and handle deleting a page’s last row.
-- [ ] Test persistence, invalid changes and already-deleted records.
+- [x] Reuse the form for editing and require confirmation before deletion.
+- [x] Treat missing and foreign-owned IDs as unavailable.
+- [x] Refresh ledger and filtered count after successful writes (dashboard totals are T07) and handle deleting a page’s last row.
+- [x] Test persistence, invalid changes and already-deleted records.
+
+Implementation and 73 automated tests completed 14 November 2026. Edit/save, archived-category handling and Cancel paths verified in the browser. Confirmed browser deletion retained filters and recovered from page 2 to page 1 with 20 rows. Ready for PR review. See [Task 6 walkthrough](task6-edit-delete.md).
 
 ### T07 Build monthly spending dashboard
 Target: 2026-11-10 • Estimate: 4 hours • Depends on: T06
