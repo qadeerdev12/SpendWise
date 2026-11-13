@@ -106,8 +106,11 @@ category, refresh preserving page 2 and filters, and Cancel discarding a merchan
 Changing the category removed that expense from the original filter with success
 feedback. Delete Cancel returned to the same view and retained the record.
 
-Final deletion and last-page recovery browser evidence is recorded after the explicit
-test-action confirmation. Automated successful deletion tests already pass.
+After explicit test-action confirmation, deleting the invented A$12.45 Task6 fixture 01
+showed Expense deleted and returned from page 2 to page 1. The URL retained
+month=2026-11 and categoryId=1, with page=1; the ledger displayed 1–20 of 20
+expenses and Page 1 of 1. This completes the final deletion and last-page recovery
+browser check. Automated successful deletion tests also pass.
 
 ## Deliberate MVP limits
 
