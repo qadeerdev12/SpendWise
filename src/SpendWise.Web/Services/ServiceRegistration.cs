@@ -17,6 +17,7 @@ public static class ServiceRegistration
         services.AddScoped<CategoryInitializer>();
         services.AddScoped<CategoryService>();
         services.AddScoped<ExpenseService>();
+        services.AddScoped<DashboardService>();
         services.AddScoped<SpendWise.Web.Components.Expenses.ExpenseFeedback>();
         services.AddScoped<AccountDeletionService>();
         return services;

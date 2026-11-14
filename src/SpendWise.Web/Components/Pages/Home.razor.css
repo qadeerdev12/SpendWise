@@ -1,0 +1,10 @@
+/* Flexible cards and a scrollable table keep the summary usable on narrow screens. */
+.dashboard { max-width: 960px; }
+.dashboard-heading, .dashboard-actions { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+.dashboard-heading { justify-content: space-between; margin-bottom: 1.5rem; }
+.dashboard-actions { gap: .5rem; }
+.dashboard-month { max-width: 240px; margin-bottom: 1.5rem; }
+.dashboard-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+.dashboard-value { font-size: clamp(1.5rem, 4vw, 2.25rem); font-weight: 600; margin-bottom: 0; overflow-wrap: anywhere; }
+.dashboard-table { overflow-x: auto; }
+@media (max-width: 480px) { .dashboard-cards { grid-template-columns: 1fr; } }

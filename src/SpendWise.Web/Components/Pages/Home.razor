@@ -1,48 +1,129 @@
 @page "/"
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using System.Globalization
+@using Microsoft.AspNetCore.WebUtilities
+@using SpendWise.Web.Contracts
+@using SpendWise.Web.Components.Expenses
 @inject SpendWise.Web.Services.CategoryInitializer Categories
+@inject SpendWise.Web.Services.DashboardService Dashboard
+@inject TimeProvider Clock
+@inject NavigationManager Navigation
 @inject ILogger<Home> Logger
 
-<PageTitle>SpendWise</PageTitle>
-<h1>SpendWise</h1>
-<p>Your personal expense tracker in Australian dollars.</p>
-@if (initializationFailed)
-{
-    <p role="alert">We could not prepare your categories. Please try again.</p>
-    <button class="btn btn-primary" disabled="@loading" @onclick="InitializeAsync">Try again</button>
-}
-else if (loading)
-{
-    <p role="status">Preparing your categories…</p>
-}
-else
-{
-    <p>Your categories are ready. Start by recording an expense.</p>
-    <a class="btn btn-primary" href="expenses/new">Add expense</a>
-    <a class="btn btn-outline-primary ms-2" href="expenses">View expenses</a>
-}
+<PageTitle>Dashboard · SpendWise</PageTitle>
+<div class="dashboard">
+    <div class="dashboard-heading">
+        <div><h1>Monthly dashboard</h1><p class="text-muted">Your spending at a glance. All amounts are in AUD.</p></div>
+        <div class="dashboard-actions">
+            <a class="btn btn-primary" href="expenses/new">Add expense</a>
+            <a class="btn btn-outline-primary" href="@LedgerUrl">View expenses</a>
+        </div>
+    </div>
+    <div class="dashboard-month">
+        <label class="form-label" for="dashboard-month">Month</label>
+        <input id="dashboard-month" class="form-control" type="month" min="2000-01" max="@CurrentMonth"
+               value="@month" disabled="@(loading || !interactive)" @onchange="MonthChanged" />
+    </div>
+    @if (loading)
+    {
+        <p role="status">Loading your spending summary…</p>
+    }
+    else if (error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@error</div>
+        <button class="btn btn-outline-primary" disabled="@(!interactive)" @onclick="LoadAsync">Try again</button>
+    }
+    else if (summary is not null)
+    {
+        <div class="dashboard-cards">
+            <section class="card"><div class="card-body"><h2 class="h6 text-muted">Total spent</h2>
+                <p class="dashboard-value">@Money(summary.TotalCents)</p></div></section>
+            <section class="card"><div class="card-body"><h2 class="h6 text-muted">Expenses</h2>
+                <p class="dashboard-value">@summary.ExpenseCount</p></div></section>
+        </div>
+        @if (summary.ExpenseCount == 0)
+        {
+            <div class="alert alert-info" role="status">No expenses recorded for this month. Choose another month or <a href="expenses/new">add an expense</a>.</div>
+        }
+        else
+        {
+            <h2 class="h4">Spending by category</h2>
+            <div class="dashboard-table" role="region" aria-label="Category spending; scroll horizontally on small screens" tabindex="0">
+                <table class="table table-striped align-middle">
+                    <caption>All categories for @month, highest spending first.</caption>
+                    <thead><tr><th scope="col">Category</th><th scope="col" class="text-end">Expenses</th><th scope="col" class="text-end">Amount (AUD)</th></tr></thead>
+                    <tbody>
+                        @foreach (var category in summary.Categories)
+                        {
+                            <tr @key="category.CategoryId"><th scope="row">@category.CategoryName@(category.IsArchived ? " (archived)" : "")</th>
+                                <td class="text-end">@category.ExpenseCount</td><td class="text-end text-nowrap">@Money(category.TotalCents)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
 
 @code {
-    private bool initializationFailed;
+    [SupplyParameterFromQuery(Name = "month")] public string? MonthQuery { get; set; }
+    private static readonly CultureInfo Australian = CultureInfo.GetCultureInfo("en-AU");
+    private string month = "";
     private bool loading;
+    private bool interactive;
+    private int loadVersion;
+    private string? error;
+    private DashboardSummary? summary;
+    private string CurrentMonth => ExpenseFormModel.Today(Clock).ToString("yyyy-MM", CultureInfo.InvariantCulture);
+    private string DashboardUrl => QueryHelpers.AddQueryString("", "month", month);
+    private string LedgerUrl => new LedgerLocation(month).Url();
+    private static string Money(long cents) => $"A${(cents / 100m).ToString("N2", Australian)}";
 
-    protected override Task OnInitializedAsync() => InitializeAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reuse the ledger's validated month rules; category and page never filter this report.
+        month = LedgerLocation.FromQuery(MonthQuery, null, null, Clock).Month;
+        await LoadAsync();
+    }
 
-    private async Task InitializeAsync()
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // A canonical month URL preserves the selection on refresh, including initial defaults.
+        if (!loading && summary is not null && Navigation.ToBaseRelativePath(Navigation.Uri) != DashboardUrl)
+            Navigation.NavigateTo(DashboardUrl, replace: true);
+        if (firstRender) { interactive = true; StateHasChanged(); }
+    }
+
+    private void MonthChanged(ChangeEventArgs args)
     {
         if (loading) return;
+        var selected = LedgerLocation.FromQuery(args.Value?.ToString(), null, null, Clock).Month;
+        Navigation.NavigateTo(QueryHelpers.AddQueryString("", "month", selected));
+    }
+
+    private async Task LoadAsync()
+    {
+        // Back/forward navigation can overtake an earlier request; only the newest may publish.
+        var version = ++loadVersion;
+        var requested = DateOnly.ParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture);
         loading = true;
-        initializationFailed = false;
+        summary = null;
+        error = null;
         try
         {
-            // Prerendering and interactive rendering can both call this; seeding is idempotent.
+            // Preserve Home's existing idempotent first-visit category setup.
             await Categories.EnsureInitializedAsync();
+            var response = await Dashboard.GetMonthlySummaryAsync(requested.Year, requested.Month);
+            if (version != loadVersion) return;
+            if (response.Status == ResultStatus.Success) summary = response.Value;
+            else error = response.Error;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Default category initialization failed.");
-            initializationFailed = true;
+            if (version != loadVersion) return;
+            Logger.LogError(ex, "Monthly dashboard could not be loaded.");
+            error = "We could not load your spending summary. Please try again.";
         }
-        finally { loading = false; }
+        finally { if (version == loadVersion) loading = false; }
     }
 }
