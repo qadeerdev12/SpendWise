@@ -10,7 +10,7 @@ using SpendWise.Web.Services;
 namespace SpendWise.Tests.Integration;
 
 // File-backed SQLite uses independent connections, including for concurrent first visits.
-public sealed class UserServicesTests : IAsyncLifetime
+public sealed partial class UserServicesTests(Xunit.Abstractions.ITestOutputHelper output) : IAsyncLifetime
 {
     private readonly string _path = Path.Combine(Path.GetTempPath(), $"spendwise-services-{Guid.NewGuid():N}.db");
     private readonly string _password = $"Test!{Guid.NewGuid():N}aA7";

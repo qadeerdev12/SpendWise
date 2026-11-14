@@ -1,0 +1,16 @@
+Local Release run: 14 November 2026, Australia/Sydney
+Hardware: Apple M6, 32 GiB RAM, 12 logical CPUs; SDK 10.0.402
+
+ENV: macOS 27.0.1; Arm64; .NET 10.0.13; CPU logical count=12
+DATASET: Alice=5000; October=2500, September=1500, August=1000; categories=8; Bob=1 control; file-backed SQLite, Pooling=False; Release recommended.
+ORACLE: October cents=115581250; count=2500
+PERF ledger-page-1: n=20 median=0.944ms p95=1.050ms max=1.812ms p95Target500ms=PASS
+SAMPLES ledger-page-1: 1.812,1.043,1.050,0.948,0.979,0.963,0.950,0.972,0.938,0.913,0.941,0.880,0.873,0.867,0.891,0.872,0.879,0.928,0.961,0.982
+PERF ledger-page-63: n=20 median=0.902ms p95=0.967ms max=0.976ms p95Target500ms=PASS
+SAMPLES ledger-page-63: 0.917,0.913,0.907,0.892,0.898,0.914,0.976,0.936,0.967,0.929,0.888,0.909,0.883,0.880,0.906,0.878,0.899,0.869,0.870,0.879
+PERF ledger-page-125: n=20 median=0.932ms p95=1.186ms max=1.847ms p95Target500ms=PASS
+SAMPLES ledger-page-125: 0.918,0.987,0.975,0.969,0.900,0.917,0.904,0.952,0.898,0.894,0.948,0.905,0.961,0.924,0.939,0.913,0.898,0.973,1.847,1.186
+PERF ledger-category: n=20 median=0.923ms p95=1.146ms max=1.642ms p95Target500ms=PASS
+SAMPLES ledger-category: 0.985,1.642,0.883,0.883,0.910,0.928,0.883,1.028,0.885,0.958,0.922,0.957,0.863,0.969,0.869,1.071,1.146,0.925,0.920,0.895
+PERF dashboard: n=20 median=1.193ms p95=1.512ms max=1.984ms p95Target500ms=PASS
+SAMPLES dashboard: 1.215,1.512,1.189,1.203,1.218,1.202,1.171,1.190,1.202,1.213,1.180,1.194,1.192,1.984,1.195,1.179,1.178,1.179,1.171,1.168
