@@ -8,7 +8,7 @@ Implemented foundation: .NET 10 Blazor Web App, Interactive Server rendering,
 Individual Accounts, SQLite, a test project and a build/test workflow.
 Expense and Category entities, relational constraints and migrations are implemented.
 Owner-scoped services, one-time category initialization and permanent account deletion are implemented.
-Validated expense entry and a filtered, paginated ledger are implemented. Separate edit and confirmed-deletion pages are implemented; the monthly dashboard shows exact AUD totals, expense counts and category spending.
+Validated expense entry and a filtered, paginated ledger are implemented. Separate edit and confirmed-deletion pages are implemented; the monthly dashboard shows exact AUD totals, expense counts and category spending. Category management supports add, inline rename, archive and restore.
 See [the edit/delete walkthrough](docs/task6-edit-delete.md) for component reuse, ownership and URL state.
 See [the ledger walkthrough](docs/task5-ledger.md) for filtering, pagination and verification.
 See [the expense-entry walkthrough](docs/task4-expense-entry.md) for form behavior and verification.
@@ -72,8 +72,8 @@ Target: 13 November 2026, working 3–4 hours per weekday.
 
 ## Next milestone
 
-1. Complete category management.
-2. Run acceptance checks and prepare deployment.
+1. Run MVP acceptance and performance checks.
+2. Prepare deployment and recovery verification.
 
 ## Release boundary
 

@@ -581,6 +581,66 @@ public sealed class UserServicesTests : IAsyncLifetime
         Assert.Equal(ResultStatus.ValidationFailure, response.Status);
     }
 
+    [Fact]
+    public async Task CategoryLifecycle_RenamePreservesHistory_ArchiveReservesName_RestoreAllowsNewExpenses()
+    {
+        await Initialize("alice");
+        await As("alice", async sp =>
+        {
+            var categories = sp.GetRequiredService<CategoryService>();
+            var expenses = sp.GetRequiredService<ExpenseService>();
+            var created = await categories.CreateAsync("  Coffee  ");
+            Assert.Equal(ResultStatus.Success, created.Status);
+            var id = created.Value;
+            Assert.Equal("Coffee", (await categories.ListAsync()).Single(c => c.Id == id).Name);
+            var expense = await expenses.CreateAsync(new(450, Today, id));
+            Assert.Equal(ResultStatus.Success, expense.Status);
+            Assert.Equal(ResultStatus.Success, (await categories.RenameAsync(id, "  Cafe visits  ")).Status);
+            var row = (await expenses.GetAsync(expense.Value)).Value!;
+            Assert.Equal("Cafe visits", row.CategoryName);
+            Assert.Equal(id, row.CategoryId);
+            Assert.Equal(450, row.AmountCents);
+            await categories.SetArchivedAsync(id, true);
+            Assert.DoesNotContain(await categories.ListAsync(), c => c.Id == id);
+            Assert.Equal(ResultStatus.ValidationFailure, (await categories.CreateAsync("CAFE VISITS")).Status);
+            var other = (await categories.ListAsync())[0];
+            Assert.Equal(ResultStatus.ValidationFailure, (await categories.RenameAsync(other.Id, "cafe visits")).Status);
+            Assert.Equal(other.Name, (await categories.ListAsync()).Single(c => c.Id == other.Id).Name);
+            // Archived categories can be renamed without changing the expense's identity or value.
+            Assert.Equal(ResultStatus.Success, (await categories.RenameAsync(id, "Coffee breaks")).Status);
+            var summary = (await sp.GetRequiredService<DashboardService>().GetMonthlySummaryAsync(2026, 11)).Value!;
+            Assert.Equal(450, summary.TotalCents);
+            Assert.Equal("Coffee breaks", Assert.Single(summary.Categories).CategoryName);
+            Assert.True(summary.Categories[0].IsArchived);
+            Assert.Equal(ResultStatus.ValidationFailure, (await expenses.CreateAsync(new(100, Today, id))).Status);
+            Assert.Equal(ResultStatus.Success, (await categories.SetArchivedAsync(id, false)).Status);
+            Assert.Contains(await categories.ListAsync(), c => c.Id == id && !c.IsArchived);
+            Assert.Equal(ResultStatus.Success, (await expenses.CreateAsync(new(100, Today, id))).Status);
+            return true;
+        });
+        // The same name belongs to a different user's namespace, so it remains available.
+        var bob = await As("bob", sp => sp.GetRequiredService<CategoryService>().CreateAsync("Coffee breaks"));
+        Assert.Equal(ResultStatus.Success, bob.Status);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("12345678901234567890123456789012345678901")]
+    public async Task CategoryInvalidNames_DoNotCreateOrRename(string name)
+    {
+        await Initialize("alice");
+        var before = await Categories("alice");
+        await As("alice", async sp =>
+        {
+            var service = sp.GetRequiredService<CategoryService>();
+            Assert.Equal(ResultStatus.ValidationFailure, (await service.CreateAsync(name)).Status);
+            Assert.Equal(ResultStatus.ValidationFailure, (await service.RenameAsync(before[0].Id, name)).Status);
+            return true;
+        });
+        Assert.Equal(before, await Categories("alice"));
+    }
+
     private sealed class TestAuthentication : AuthenticationStateProvider
     {
         public string? UserId { get; set; }

@@ -132,10 +132,12 @@ Implemented 14 November 2026. All 80 tests pass; populated/empty dashboard, mont
 ### T08 Complete category management and responsive states
 Target: 2026-11-11 • Estimate: 4 hours • Depends on: T07
 
-- [ ] Implement add, rename, archive and restore with case-insensitive name uniqueness.
-- [ ] Retain archived category history; prevent new assignments while allowing existing records to retain it.
-- [ ] Check 360-pixel layout, keyboard navigation, labels and focus.
-- [ ] Verify error, loading and reconnect states.
+- [x] Implement add, rename, archive and restore with case-insensitive name uniqueness.
+- [x] Retain archived category history; prevent new assignments while allowing existing records to retain it.
+- [x] Check 360-pixel layout, keyboard navigation, labels and focus.
+- [x] Verify error, loading and reconnect states.
+
+Implemented 14 November 2026. All 84 tests pass. Category workflow, 360-pixel layout, keyboard focus, database failure/reload, delayed loading and server-disconnect/reload verified. App-wide acceptance remains T09. See [Task 8 walkthrough](task8-categories.md).
 
 ### T09 Run MVP acceptance and performance checks
 Target: 2026-11-12 • Estimate: 4 hours • Depends on: T08
