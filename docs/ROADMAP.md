@@ -142,10 +142,12 @@ Implemented 14 November 2026. All 84 tests pass. Category workflow, 360-pixel la
 ### T09 Run MVP acceptance and performance checks
 Target: 2026-11-12 • Estimate: 4 hours • Depends on: T08
 
-- [ ] Run automated tests and the two-user manual acceptance checklist.
-- [ ] Measure warm queries against 5,000 expenses and record environment and timings.
+- [x] Run automated tests and the two-user manual acceptance checklist.
+- [x] Measure warm queries against 5,000 expenses and record environment and timings.
 - [ ] Have a first-time tester attempt the expense-entry workflow using invented data.
-- [ ] Fix accuracy, isolation and persistence defects before release; record outstanding non-blockers.
+- [x] Fix accuracy, isolation and persistence defects before release; record outstanding non-blockers.
+
+Local technical checks passed 14 November 2026: 89 tests, two-user browser isolation, exact fixture totals, clean setup and restart persistence. Warm-query p95 0.967–1.512 ms. One stale recovery message fixed. First-time tester remains pending; T09 stays open. See [acceptance evidence](task9-acceptance.md).
 
 ### T10 Deploy pilot and demonstrate recovery
 Target: 2026-11-13 • Estimate: 4 hours • Depends on: T09

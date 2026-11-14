@@ -72,7 +72,7 @@ Target: 13 November 2026, working 3–4 hours per weekday.
 
 ## Next milestone
 
-1. Run MVP acceptance and performance checks.
+1. Complete the first-time-user exercise; local acceptance and performance checks have passed ([evidence](docs/task9-acceptance.md)).
 2. Prepare deployment and recovery verification.
 
 ## Release boundary

@@ -23,7 +23,8 @@
     }
     else if (categories.Count == 0)
     {
-        <div class="alert alert-info" role="status">You have no active categories. Restore or add a category before recording an expense. Category management is not available in this pilot yet.</div>
+        @* Category management is now available, so the empty state offers a direct recovery path. *@
+        <div class="alert alert-info" role="status">You have no active categories. <a href="categories">Restore or add a category</a> before recording an expense.</div>
     }
     else
     {
