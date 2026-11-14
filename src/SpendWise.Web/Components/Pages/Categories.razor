@@ -1,0 +1,217 @@
+@page "/categories"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using SpendWise.Web.Contracts
+@inject SpendWise.Web.Services.CategoryService CategoryService
+@inject SpendWise.Web.Services.CategoryInitializer Initializer
+@inject ILogger<Categories> Logger
+
+<PageTitle>Categories · SpendWise</PageTitle>
+<div class="categories-page">
+    <h1 tabindex="-1" @ref="heading">Categories</h1>
+    <p class="text-muted">Organise your spending. Archiving keeps your expense history safe.</p>
+    @if (success is not null)
+    {
+        <div class="alert alert-success" role="status" tabindex="-1" @ref="feedback">@success</div>
+    }
+    @if (error is not null)
+    {
+        <div class="alert alert-danger" role="alert" tabindex="-1" @ref="feedback">@error</div>
+    }
+    @if (loading)
+    {
+        <p role="status">Loading categories…</p>
+    }
+    @if (loadFailed || uncertain)
+    {
+        <button class="btn btn-outline-primary mb-3" disabled="@(busy || loading || !interactive)" @onclick="ReloadAsync">Reload categories</button>
+    }
+    <fieldset disabled="@(busy || loading || !interactive || loadFailed || uncertain)">
+        <legend class="visually-hidden">Manage categories</legend>
+        <form @onsubmit="AddAsync" @onsubmit:preventDefault class="category-add">
+            <label for="new-category" class="form-label">New category name</label>
+            <div class="category-controls">
+                <input id="new-category" class="form-control" @bind="newName" @bind:event="oninput" aria-describedby="category-name-help" disabled="@(editing is not null || archiving is not null)" />
+                <button type="submit" class="btn btn-primary" disabled="@(editing is not null || archiving is not null)">Add category</button>
+            </div>
+            <p id="category-name-help" class="form-text">1–40 characters. Names must be unique, including archived categories.</p>
+        </form>
+        <div class="form-check my-4">
+            <input id="show-archived" class="form-check-input" type="checkbox" @bind="showArchived" disabled="@(editing is not null || archiving is not null)" />
+            <label for="show-archived" class="form-check-label">Show archived categories</label>
+        </div>
+        @if (!loading && !loadFailed)
+        {
+            @if (!VisibleCategories.Any())
+            {
+                <p role="status">No @(showArchived ? "" : "active ")categories. Add one or show archived categories to restore them.</p>
+            }
+            <ul class="category-list">
+                @foreach (var category in VisibleCategories)
+                {
+                    <li @key="category.Id" class="category-row">
+                        @if (editing == category.Id)
+                        {
+                            <form @onsubmit="RenameAsync" @onsubmit:preventDefault class="category-editor">
+                                <label for="rename-category" class="form-label">Rename @category.Name</label>
+                                <input id="rename-category" class="form-control" @bind="renameName" @bind:event="oninput" @ref="renameInput" aria-describedby="rename-help" />
+                                <p id="rename-help" class="form-text">Renaming updates the label on existing expenses too.</p>
+                                <div class="category-controls">
+                                    <button type="submit" class="btn btn-primary">Save name</button>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
+                                </div>
+                            </form>
+                        }
+                        else if (archiving == category.Id)
+                        {
+                            <div class="category-editor">
+                                <p>Archive “@category.Name”? Existing expenses will remain unchanged. You can restore this category later.</p>
+                                <div class="category-controls">
+                                    <button type="button" class="btn btn-warning" @ref="archiveButton" @onclick="() => SetArchivedAsync(category.Id, true)">Confirm archive</button>
+                                    <button type="button" class="btn btn-outline-secondary" @onclick="Cancel">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="category-name">@category.Name @if (category.IsArchived) { <span class="badge text-bg-secondary">Archived</span> }</span>
+                            <div class="category-controls">
+                                <button type="button" class="btn btn-outline-primary" disabled="@(editing is not null || archiving is not null)" aria-label="@($"Rename {category.Name}")" @onclick="() => BeginRename(category)">Rename</button>
+                                @if (category.IsArchived)
+                                {
+                                    <button type="button" class="btn btn-outline-secondary" disabled="@(editing is not null || archiving is not null)" aria-label="@($"Restore {category.Name}")" @onclick="() => SetArchivedAsync(category.Id, false)">Restore</button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn btn-outline-secondary" disabled="@(editing is not null || archiving is not null)" aria-label="@($"Archive {category.Name}")" @onclick="() => BeginArchive(category.Id)">Archive</button>
+                                }
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </fieldset>
+    @if (busy) { <p role="status">Saving category…</p> }
+</div>
+
+@code {
+    private IReadOnlyList<CategoryRow> categories = [];
+    private IEnumerable<CategoryRow> VisibleCategories => categories.Where(c => showArchived || !c.IsArchived)
+        .OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase).ThenBy(c => c.Id);
+    private string newName = "";
+    private string renameName = "";
+    private int? editing;
+    private int? archiving;
+    private bool showArchived, loading, busy, interactive, loadFailed, uncertain;
+    private string? error, success, focusTarget;
+    private ElementReference heading, feedback, renameInput, archiveButton;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) { interactive = true; StateHasChanged(); }
+        // Move keyboard focus into newly revealed controls, or to operation feedback.
+        var target = focusTarget;
+        focusTarget = null;
+        if (target == "rename") await renameInput.FocusAsync();
+        else if (target == "archive") await archiveButton.FocusAsync();
+        else if (target == "feedback") await feedback.FocusAsync();
+        else if (target == "heading") await heading.FocusAsync();
+    }
+
+    private void BeginRename(CategoryRow category)
+    {
+        editing = category.Id;
+        renameName = category.Name;
+        error = success = null;
+        focusTarget = "rename";
+    }
+
+    private void BeginArchive(int id)
+    {
+        archiving = id;
+        error = success = null;
+        focusTarget = "archive";
+    }
+
+    private void Cancel()
+    {
+        editing = archiving = null;
+        error = success = null;
+        focusTarget = "heading";
+    }
+
+    private Task AddAsync() => MutateAsync(() => CategoryService.CreateAsync(newName), "Category added.", true);
+    private Task RenameAsync() => editing is int id
+        ? MutateAsync(() => CategoryService.RenameAsync(id, renameName), "Category renamed. Existing expenses now use the new label.")
+        : Task.CompletedTask;
+    private Task SetArchivedAsync(int id, bool archived) => MutateAsync(
+        () => CategoryService.SetArchivedAsync(id, archived), archived
+            ? "Category archived. Existing expenses are unchanged. Show archived categories to restore it."
+            : "Category restored. It is available for new expenses again.");
+
+    private async Task MutateAsync<T>(Func<Task<ServiceResult<T>>> operation, string message, bool clearNewName = false)
+    {
+        if (busy || loading || !interactive || loadFailed || uncertain) return;
+        busy = true;
+        error = success = null;
+        // Let Blazor render disabled controls before SQLite starts potentially synchronous I/O.
+        await Task.Yield();
+        try
+        {
+            // The service validates names and ownership again. A disabled button is not security.
+            var response = await operation();
+            if (response.Status != ResultStatus.Success)
+            {
+                error = response.Error; // Keep typed input available for correction.
+                if (response.Status == ResultStatus.NotFound) uncertain = true;
+                return;
+            }
+            if (clearNewName) newName = "";
+            editing = archiving = null;
+            success = message;
+            await LoadAsync(); // A refresh failure must not claim the successful write failed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Category change could not be confirmed.");
+            uncertain = true;
+            error = "We could not confirm the change. Reload categories to check the result before trying again.";
+        }
+        finally { busy = false; focusTarget = "feedback"; }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (busy || loading) return;
+        editing = archiving = null;
+        error = success = null;
+        await LoadAsync();
+        focusTarget = error is null ? "heading" : "feedback";
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        loadFailed = false;
+        // SQLite async calls can perform synchronous work; give loading feedback a render first.
+        await Task.Yield();
+        try
+        {
+            // Direct visits must prepare defaults too, without recreating renamed/archived defaults.
+            await Initializer.EnsureInitializedAsync();
+            categories = await CategoryService.ListAsync(includeArchived: true);
+            uncertain = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Categories could not be loaded.");
+            categories = [];
+            loadFailed = true;
+            error = success is null ? "We could not load your categories. Please reload to try again."
+                : "Your change was saved, but we could not refresh the list. Please reload categories.";
+        }
+        finally { loading = false; }
+    }
+}

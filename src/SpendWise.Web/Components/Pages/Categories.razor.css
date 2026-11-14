@@ -1,0 +1,11 @@
+/* Wrapping controls keep category management usable without horizontal scrolling. */
+.categories-page { max-width: 850px; }
+.category-add { max-width: 600px; }
+.category-controls { display: flex; gap: .5rem; flex-wrap: wrap; }
+.category-controls .form-control { flex: 1 1 220px; width: auto; }
+.category-list { list-style: none; padding: 0; }
+.category-row { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #dee2e6; flex-wrap: wrap; }
+.category-name { overflow-wrap: anywhere; flex: 1 1 180px; }
+.category-editor { width: 100%; }
+.category-editor .form-control { max-width: 520px; }
+@media (max-width: 480px) { .category-row > .category-controls { width: 100%; } }
