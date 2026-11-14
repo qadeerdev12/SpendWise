@@ -77,6 +77,7 @@ public sealed class UserServicesTests : IAsyncLifetime
     {
         await As<object?>(null, async sp =>
         {
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => sp.GetRequiredService<DashboardService>().GetMonthlySummaryAsync(2026, 11));
             var expenses = sp.GetRequiredService<ExpenseService>();
             var categories = sp.GetRequiredService<CategoryService>();
             var input = new ExpenseInput(100, Today, 1);
@@ -509,6 +510,75 @@ public sealed class UserServicesTests : IAsyncLifetime
             Assert.Equal(20, (await service.ListAsync(new(2026,11))).Value!.Items.Count);
             return true;
         });
+    }
+
+    [Fact]
+    public async Task Dashboard_ExactTotalsChangeAfterEditAndDelete_AndIncludeArchivedHistory()
+    {
+        await Initialize("alice");
+        var categories = await Categories("alice");
+        await As("alice", async sp =>
+        {
+            var expenses = sp.GetRequiredService<ExpenseService>();
+            var dashboard = sp.GetRequiredService<DashboardService>();
+            var edited = (await expenses.CreateAsync(new(2450, Today, categories[0].Id))).Value;
+            var deleted = (await expenses.CreateAsync(new(1200, Today, categories[0].Id))).Value;
+            await expenses.CreateAsync(new(8240, Today, categories[1].Id));
+            await sp.GetRequiredService<CategoryService>().SetArchivedAsync(categories[1].Id, true);
+            var initial = (await dashboard.GetMonthlySummaryAsync(2026, 11)).Value!;
+            Assert.Equal(11890, initial.TotalCents);
+            Assert.Equal(3, initial.ExpenseCount);
+            Assert.Equal(new long[] { 8240, 3650 }, initial.Categories.Select(c => c.TotalCents));
+            Assert.True(initial.Categories[0].IsArchived);
+            Assert.Equal(2, initial.Categories[1].ExpenseCount);
+            Assert.Equal(ResultStatus.Success, (await expenses.UpdateAsync(edited, new(2000, Today, categories[0].Id))).Status);
+            Assert.Equal(11440, (await dashboard.GetMonthlySummaryAsync(2026, 11)).Value!.TotalCents);
+            Assert.Equal(ResultStatus.Success, (await expenses.DeleteAsync(deleted)).Status);
+            var final = (await dashboard.GetMonthlySummaryAsync(2026, 11)).Value!;
+            Assert.Equal(10240, final.TotalCents);
+            Assert.Equal(2, final.ExpenseCount);
+            return true;
+        });
+    }
+
+    [Fact]
+    public async Task Dashboard_ScopesOwnerAndMonth_IncludesEveryPage_AndReturnsZeroForEmptyMonth()
+    {
+        await Initialize("alice");
+        await AddExpense("bob", 99999);
+        var category = (await Categories("alice"))[0].Id;
+        await As("alice", async sp =>
+        {
+            var expenses = sp.GetRequiredService<ExpenseService>();
+            // October has records on both boundaries, plus a 21st row beyond ledger page one.
+            for (var i = 0; i < 21; i++)
+                await expenses.CreateAsync(new(29, new DateOnly(2026, 10, i == 0 ? 1 : 31), category));
+            await expenses.CreateAsync(new(700, new DateOnly(2026, 9, 30), category));
+            await expenses.CreateAsync(new(900, new DateOnly(2026, 11, 1), category));
+            var dashboard = sp.GetRequiredService<DashboardService>();
+            var october = (await dashboard.GetMonthlySummaryAsync(2026, 10)).Value!;
+            Assert.Equal(609, october.TotalCents);
+            Assert.Equal(21, october.ExpenseCount);
+            Assert.Equal(21, Assert.Single(october.Categories).ExpenseCount);
+            Assert.Equal(900, (await dashboard.GetMonthlySummaryAsync(2026, 11)).Value!.TotalCents);
+            var empty = (await dashboard.GetMonthlySummaryAsync(2026, 8)).Value!;
+            Assert.Equal(0, empty.TotalCents);
+            Assert.Equal(0, empty.ExpenseCount);
+            Assert.Empty(empty.Categories);
+            return true;
+        });
+    }
+
+    [Theory]
+    [InlineData(1999, 12)]
+    [InlineData(2026, 0)]
+    [InlineData(2026, 13)]
+    [InlineData(2026, 12)]
+    [InlineData(2027, 1)]
+    public async Task Dashboard_RejectsUnsupportedMonths(int year, int month)
+    {
+        var response = await As("alice", sp => sp.GetRequiredService<DashboardService>().GetMonthlySummaryAsync(year, month));
+        Assert.Equal(ResultStatus.ValidationFailure, response.Status);
     }
 
     private sealed class TestAuthentication : AuthenticationStateProvider

@@ -122,10 +122,12 @@ Implementation and 73 automated tests completed 14 November 2026. Edit/save, arc
 ### T07 Build monthly spending dashboard
 Target: 2026-11-10 • Estimate: 4 hours • Depends on: T06
 
-- [ ] Show selected month’s AUD total, count and category totals.
-- [ ] Keep dashboard independent of ledger category filtering.
-- [ ] Verify A$118.90 fixture and A$114.40/A$102.40 edit/delete outcomes.
-- [ ] Show A$0.00 and a useful action for an empty month.
+- [x] Show selected month’s AUD total, count and category totals.
+- [x] Keep dashboard independent of ledger category filtering.
+- [x] Verify A$118.90 fixture and A$114.40/A$102.40 edit/delete outcomes.
+- [x] Show A$0.00 and a useful action for an empty month.
+
+Implemented 14 November 2026. All 80 tests pass; populated/empty dashboard, month selection, refresh, ledger navigation and invalid-query fallback verified in the browser. See [Task 7 walkthrough](task7-dashboard.md).
 
 ### T08 Complete category management and responsive states
 Target: 2026-11-11 • Estimate: 4 hours • Depends on: T07
